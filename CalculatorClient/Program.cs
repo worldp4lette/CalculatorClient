@@ -11,16 +11,35 @@ namespace CalculatorClient
     {
         static async Task Main(string[] args)
         {
-            var apiUrl = "http://localhost:5281/api/calculator";
+            var simpleCalculateUrl = "http://localhost:5281/api/calculator";
+            var complexCalculateUrl = "http://localhost:5281/api/calculator/ComplexExpression";
 
             while (true)
             {
                 string expression = Console.ReadLine();
+                string url;
+                bool isComplex = (expression[0] == 'c');
 
                 try
                 {
-                    var result = await PostExpressionAsync(apiUrl, expression);
-                    Console.WriteLine($"The result of {expression} is: {result}");
+                    if (isComplex)
+                    {
+                        url = complexCalculateUrl;
+                        expression = expression[1..];
+                    }
+                    else
+                    {
+                        url = simpleCalculateUrl;
+                    }
+                    var result = await PostExpressionAsync(url, expression);
+                    if (isComplex)
+                    {
+                        Console.WriteLine($"The result of the previous complex calculation\n {expression} is: {result}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"The result of {expression} is: {result}");
+                    }
                 }
                 catch (Exception ex)
                 {
