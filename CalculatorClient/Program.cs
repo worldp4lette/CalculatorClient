@@ -9,47 +9,44 @@ namespace CalculatorClient
 {
     internal class Program
     {
+        private static readonly HttpClient client = new HttpClient();
+        private static readonly Channel<string> requestChannel = Channel.CreateUnbounded<string>();
+
         static async Task Main(string[] args)
         {
             var simpleCalculateUrl = "http://localhost:5281/api/calculator";
             var complexCalculateUrl = "http://localhost:5281/api/calculator/ComplexExpression";
 
-            while (true)
+            var userInputTask = Task.Run(async () =>
             {
-                string expression = Console.ReadLine();
-                string url;
-                bool isComplex = (expression[0] == 'c');
-
-                try
+                while (true)
                 {
-                    if (isComplex)
+                    string expression = Console.ReadLine();
+                    await requestChannel.Writer.WriteAsync(expression);
+                }
+            });
+
+            var requestHandlerTask = Task.Run(async () =>
+            {
+                await foreach (var expression in requestChannel.Reader.ReadAllAsync())
+                {
+                    string url = (expression[0] == 'c') ? complexCalculateUrl : simpleCalculateUrl;
+                    if (expression[0] == 'c')
                     {
-                        url = complexCalculateUrl;
-                        expression = expression[1..];
+                        var result = PostExpressionAsync(url, expression[1..], true);
                     }
                     else
                     {
-                        url = simpleCalculateUrl;
-                    }
-                    var result = await PostExpressionAsync(url, expression);
-                    if (isComplex)
-                    {
-                        Console.WriteLine($"The result of the previous complex calculation\n {expression} is: {result}");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"The result of {expression} is: {result}");
+                        var result = PostExpressionAsync(url, expression, false);
+                        
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"An error occurred: {ex.Message}");
-                }
+            });
 
-            }
+            await Task.WhenAll(userInputTask, requestHandlerTask);
         }
 
-        static async Task<string> PostExpressionAsync(String apiUrl, String expression)
+        static async Task<string> PostExpressionAsync(String apiUrl, String expression, bool isComplex)
         {
             using (var client = new HttpClient())
             {
@@ -61,8 +58,16 @@ namespace CalculatorClient
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var responseContent = await response.Content.ReadAsStringAsync();
-                    return responseContent;
+                    var result = await response.Content.ReadAsStringAsync();
+                    if (isComplex)
+                    {
+                        Console.WriteLine($"The result of the previous complex calculation\n {expression} is: {result}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"The result of {expression} is: {result}");
+                    }
+                    return result;
                 }
                 else
                 {
